@@ -235,6 +235,28 @@ with st.expander("📁 View Detailed Incident & Quantification Inventory"):
     }), use_container_width=True)
 
 
+
+with st.expander("🛠️ Municipal Remediation & Policy Action Plan (Dallas County / City of Hutchins)"):
+    st.markdown("""
+    ### Phase 1: Immediate Target Hardening & Physical Access Control
+    * **Crash-Rated Perimeter Gates:** Install heavy-duty steel pipe swing gates at the paved-to-unpaved transition of **Post Oak Rd** and the **Fulghum Rd spur**, keyed with Knox-Boxes for first responders and park personnel.
+    * **Earthen Berms & Riprap Barrier:** Construct $4\text{ ft}$ continuous earthen berms and line vulnerable drainage swales with $3\text{ ft}$ limestone riprap boulders to eliminate four-wheel-drive bypass tracks onto the levee margins.
+
+    ### Phase 2: Prosecutable Surveillance Infrastructure
+    * **Solar ALPR Corridors:** Deploy mobile solar automated license plate reader (ALPR) trailers at the Post Oak Road entrance funnel.
+    * **Automated Webhook Dispatch:** Program ALPR detections of heavy multi-axle commercial vehicles entering the preserve turnaround after sunset (park curfew) to trigger instant notifications for Dallas County Sheriff / Marshal dispatch.
+    * **Evidentiary Standard:** Align image capture timestamps with **Texas Health & Safety Code § 365.012** parameters to provide the Dallas County District Attorney with admissible evidence for Class A misdemeanor prosecution.
+
+    ### Phase 3: Cross-Jurisdictional Interlocal Agreement (ILA)
+    * **Close the Enforcement Gap:** Formalize an Interlocal Agreement between **Dallas County Commissioner District 3** and the **City of Hutchins**.
+    * **Unified Right-of-Way Jurisdiction:** Empower Dallas County Environmental Marshals to cite commercial haulers on municipal road segments feeding directly into county preserve gates.
+    * **Reinvestment Escrow:** Direct all recovered Chapter 365 fines (up to $10,000 per commercial offense) into a dedicated Goat Island Preserve ecological remediation and surveillance fund.
+
+    ### Phase 4: Upstream Commercial Hauler Regulation
+    * **Mandatory Disposal Manifest Audits:** Enforce state waste tracking manifests for independent commercial contractors, roofers, and tire repair operations along the I-45 / Fulghum industrial corridor.
+    * **Tipping Fee Subsidy / Spot Checks:** Rebalance the local economic incentive by matching spot-check enforcement with voucher programs for the McCommas Bluff Landfill to divert debris from sensitive bottomland hardwood floodplains.
+    """)
+
 with st.expander("📚 Methodology, Data Provenance & Statutory Framework"):
     st.markdown("""
     ### 1. Primary Data Streams & Sensor Provenance
