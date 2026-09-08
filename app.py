@@ -111,15 +111,35 @@ with panel_col:
 with map_col:
     m = folium.Map(location=[32.628, -96.645], zoom_start=14, tiles="OpenStreetMap")
     
-    folium.Rectangle(
-        bounds=[[32.610, -96.662], [32.640, -96.628]],
-        color="#1B365D",
-        weight=2,
-        dash_array="4, 4",
+    # 1. Dedicated Goat Island Preserve County Parcel (Riparian River Corridor)
+    folium.Polygon(
+        locations=[
+            [32.6420, -96.6350],
+            [32.6320, -96.6230],
+            [32.6120, -96.6380],
+            [32.6100, -96.6530],
+            [32.6200, -96.6570],
+            [32.6290, -96.6490],
+            [32.6380, -96.6450]
+        ],
+        color="#1E8449",
+        weight=2.5,
         fill=True,
-        fill_color="#27AE60",
-        fill_opacity=0.05,
-        tooltip="Goat Island Preserve Boundary (637 Acres)"
+        fill_color="#2ECC71",
+        fill_opacity=0.12,
+        tooltip="Dallas County Open Space: Goat Island Preserve (Core ~637 Acres)"
+    ).add_to(m)
+
+    # 2. Inter-Jurisdictional Ingress & Buffer Zone (City of Hutchins / County Road Interface)
+    folium.Rectangle(
+        bounds=[[32.615, -96.668], [32.642, -96.648]],
+        color="#8E44AD",
+        weight=1.5,
+        dash_array="5, 5",
+        fill=True,
+        fill_color="#9B59B6",
+        fill_opacity=0.04,
+        tooltip="Buffer: Post Oak Rd & Fulghum Ingress Corridor (Hutchins / County Transition)"
     ).add_to(m)
 
     if show_heatmap:
