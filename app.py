@@ -233,3 +233,26 @@ with st.expander("📁 View Detailed Incident & Quantification Inventory"):
         'Latitude': '{:.4f}',
         'Longitude': '{:.4f}'
     }), use_container_width=True)
+
+
+with st.expander("📚 Methodology, Data Provenance & Statutory Framework"):
+    st.markdown("""
+    ### 1. Primary Data Streams & Sensor Provenance
+    * **USGS Hydrological Ingestion:** Real-time streamflow and gage height retrieved via the [USGS Water Services REST API](https://waterservices.usgs.gov/) from **Station #08062500 (Trinity River near Rosser, TX)**. Stage elevations above $18.0\text{ ft}$ trigger uphill spatial displacement routines to model impassable alluvium.
+    * **Municipal Code Violations & GIS Inventories:** Spatial dump coordinates and baseline material classes calibrated using [Dallas OpenData](https://dallasopendata.com/) (*311 Service Requests: Illegal Dumping*) filtered for Lower Trinity Basin riparian buffers and Dallas County Open Space preserve borders.
+    * **Cartographic Basemaps & Infrastructure:** Road network vector topologies and parcel transitions derived from **OpenStreetMap Contributors (OSM)** and **NCTCOG** (North Central Texas Council of Governments) regional GIS datasets.
+
+    ### 2. Waste Volumetric & Mass Quantification Factors
+    Volumetric conversions use field-derived compaction ratios and the **EPA Waste Reduction Model (WARM v15)** standards:
+    * **Scrap Tires:** $0.024\text{ metric tons/unit}$ (~$22.5\text{ lbs/tire}$) per EPA scrap tire recovery factors.
+    * **Construction & Demolition (C&D) Rubble:** Bulk bulk-density factor of $0.45\text{ metric tons/m}^3$.
+    * **Bulk Furniture / MSW:** Density factor of $0.24\text{ metric tons/m}^3$ across delineated surface footprints.
+
+    ### 3. Fiscal Remediation & Statutory Liability Baselines
+    * **Remediation Cost Model:** Calibrated against average municipal abatement contracting schedules: **$450.00/ton** (C&D Hazmat sorting), **$385.00/ton** (Mixed Municipal Solid Waste), **$4.75/unit** (Tire environmental recycling surcharge), plus heavy machinery mobilization.
+    * **Enforcement & Fine Recovery:** Modeled pursuant to **Texas Health & Safety Code Chapter 365 (Texas Litter Abatement Act)**, categorizing unpermitted commercial dumping exceeding $200\text{ lbs}$ (or $5\text{ gallons}$) as a Class A Misdemeanor with corporate criminal penalties up to **$10,000 per violation**.
+
+    ### 4. Predictive Machine Learning Architecture
+    * **Spatial Clustering:** Density-Based Spatial Clustering of Applications with Noise (**DBSCAN**) using haversine geodesic distance ($250\text{m}$ spatial search neighborhood, $\text{MinPts}=2$).
+    * **Temporal Hawkes Process:** Self-exciting point process with exponential recency decay ($\\beta = 0.05$, corresponding to an empirical half-life of $\\sim 14\text{ days}$) dynamically weighted against hydrologic stage saturation.
+    """)
