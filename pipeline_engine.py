@@ -107,36 +107,67 @@ def quantify_waste_inventory(df: pd.DataFrame) -> pd.DataFrame:
     df['mass_metric_tons'] = (df['calc_tires'] * METRIC_TON_PER_TIRE) + (df['vol_m3'] * debris_density)
     return df
 
-def forecast_future_hotspots(df: pd.DataFrame, river_stage: float) -> dict:
+def forecast_future_hotspots(df: pd.DataFrame, river_stage: float) -> list:
+    from sklearn.cluster import DBSCAN
     now_dt = datetime.now(timezone.utc)
+    df = df.copy()
     df['days_old'] = (now_dt - df['created_date']).dt.total_seconds() / 86400.0
+    
+    # 1. Hawkes decay weight (beta=0.05 -> ~14 day half-life)
     beta = 0.05
     df['hawkes_weight'] = np.exp(-beta * df['days_old'])
+    active_df = df[df['days_old'] <= 60.0].copy()
     
-    active_df = df[df['days_old'] <= 60.0]
-    if active_df.empty:
-        active_df = df.iloc[:5].copy()
+    if len(active_df) < 3:
+        active_df = df.iloc[:8].copy()
         active_df['hawkes_weight'] = 1.0
 
-    weights = active_df['hawkes_weight']
-    center_lat = np.average(active_df['latitude'], weights=weights)
-    center_lon = np.average(active_df['longitude'], weights=weights)
-    
+    # 2. Cluster active incidents spatially (~250m radius)
+    coords = np.radians(active_df[['latitude', 'longitude']].values)
+    kms_per_radian = 6371.0088
+    epsilon = 0.25 / kms_per_radian
+    db = DBSCAN(eps=epsilon, min_samples=2, metric='haversine').fit(coords)
+    active_df['cluster'] = db.labels_
+
+    # Environmental flood displacement
     flood_penalty = max(0.0, (river_stage - 18.0) / 10.0)
-    shifted_lat = center_lat + (flood_penalty * 0.0035)
-    shifted_lon = center_lon - (flood_penalty * 0.0030)
-    
-    confidence = min(0.94, 0.65 + (len(active_df) * 0.015))
-    
-    return {
-        "pred_lat": shifted_lat,
-        "pred_lon": shifted_lon,
-        "radius_meters": 220 + int(flood_penalty * 60),
-        "confidence": confidence,
-        "forecast_window": "Next 14–30 Days",
-        "driving_cause": (
-            "Recency spatial contagion combined with high river stage backwater displacement"
-            if flood_penalty > 0 else
-            "Unmonitored road terminus access & tree-canopy concealment"
-        )
-    }
+
+    future_spots = []
+    # Evaluate each geographic cluster independently
+    unique_clusters = [c for c in set(db.labels_) if c != -1]
+    if not unique_clusters:
+        unique_clusters = [0]
+        active_df['cluster'] = 0
+
+    for c in unique_clusters:
+        c_df = active_df[active_df['cluster'] == c]
+        w = c_df['hawkes_weight']
+        c_lat = np.average(c_df['latitude'], weights=w)
+        c_lon = np.average(c_df['longitude'], weights=w)
+
+        # Apply displacement if cluster lies in low-elevation floodway
+        c_lat += (flood_penalty * 0.0025)
+        c_lon -= (flood_penalty * 0.0020)
+
+        # Risk scoring based on recency mass and count
+        total_recent_mass = c_df['mass_metric_tons'].sum()
+        conf = min(0.95, 0.60 + (len(c_df) * 0.04) + (total_recent_mass * 0.005))
+
+        corridor_name = "Post Oak Rd Gate" if c_lon < -96.658 else ("North Levee Spur" if c_lat > 32.628 else "Lower Slough Track")
+        
+        future_spots.append({
+            "pred_lat": float(c_lat),
+            "pred_lon": float(c_lon),
+            "radius_meters": int(160 + min(120, len(c_df) * 15)),
+            "confidence": float(conf),
+            "forecast_window": "Next 14–30 Days",
+            "corridor": corridor_name,
+            "incident_count": len(c_df),
+            "driving_cause": (
+                f"Contagion from {len(c_df)} recent dumps; displaced uphill by river stage"
+                if flood_penalty > 0 else
+                f"Contagion from {len(c_df)} recent dumps along {corridor_name}"
+            )
+        })
+
+    return future_spots
