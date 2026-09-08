@@ -1,6 +1,6 @@
 """
 app.py
-Interactive Streamlit Cloud Dashboard for Goat Island Preserve.
+Goat Island GeoAI: Illegal Dumping Detection, Risk & Management Decision-Support System
 """
 
 import streamlit as st
@@ -14,290 +14,232 @@ from pipeline_engine import (
     fetch_usgs_river_stage,
     fetch_dumping_incidents,
     quantify_waste_inventory,
-    forecast_future_hotspots,
-    compute_fiscal_impact,
-    PRESERVE_BBOX
+    calculate_decision_scores,
+    generate_candidate_monitoring_zones
 )
 
 st.set_page_config(
-    page_title="Goat Island | AI Illegal Dumping & Inundation Monitor",
+    page_title="Goat Island GeoAI | Decision-Support System",
     page_icon="🛡️",
     layout="wide"
 )
 
+# 1. Research Prototype Disclaimer Banner
+st.title("🛡️ Goat Island GeoAI: Illegal Dumping Detection, Risk & Management Decision-Support System")
+st.warning(
+    "⚠️ **Research Prototype:** Demonstration data are used for unverified incident attributes. "
+    "Outputs are intended for methodology demonstration and research evaluation, not official Dallas County records "
+    "or statutory enforcement determinations."
+)
+
 @st.cache_data(ttl=900)
-def execute_live_pipeline():
+def load_data_pipeline():
     stage = fetch_usgs_river_stage()
-    raw_incidents = fetch_dumping_incidents()
-    quantified_df = quantify_waste_inventory(raw_incidents)
-    forecast = forecast_future_hotspots(quantified_df, stage)
-    last_updated = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return stage, quantified_df, forecast, last_updated
+    raw = fetch_dumping_incidents()
+    quantified = quantify_waste_inventory(raw)
+    scored = calculate_decision_scores(quantified, stage)
+    zones = generate_candidate_monitoring_zones(scored)
+    return stage, scored, zones, datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-river_stage, incidents_df, forecast_res, update_timestamp = execute_live_pipeline()
-fiscal = compute_fiscal_impact(incidents_df)
+river_stage, df, candidate_zones, updated_time = load_data_pipeline()
 
-st.title("🛡️ Goat Island Preserve: Live GeoAI Dumping & Hazard Monitor")
-st.caption(f"📍 Dallas County District 3 | Lower Trinity River Basin | Auto-updated: **{update_timestamp}**")
-
-total_metric_tons = incidents_df['mass_metric_tons'].sum()
-total_tires = incidents_df['calc_tires'].sum()
-total_volume = incidents_df['vol_m3'].sum()
-
+# 2. Decision-First Operational Top Metrics
 col1, col2, col3, col4, col5 = st.columns(5)
 
+total_sites = len(df)
+critical_sites = len(df[df['management_priority'] == 'CRITICAL'])
+unverified_sites = len(df[df['evidence_status'].isin(['Reported', 'Remotely Detected'])])
+near_drainage = len(df[df['consequence_score'] >= 70])
+est_mass_low = df['mass_min_tons'].sum()
+est_mass_high = df['mass_max_tons'].sum()
+
 with col1:
-    stage_delta = "Flood Warning" if river_stage > 20.0 else ("Caution: Saturated" if river_stage > 16.0 else "Normal Stage")
-    st.metric(
-        label="USGS Trinity River Stage",
-        value=f"{river_stage:.1f} ft",
-        delta=stage_delta,
-        delta_color="inverse" if river_stage > 16.0 else "normal"
-    )
-
+    st.metric(label="Total Documented Sites", value=f"{total_sites} Sites", delta="Demonstration Set")
 with col2:
-    st.metric(
-        label="Total Quantified Waste",
-        value=f"{total_metric_tons:,.1f} Tons",
-        delta=f"{total_volume:,.0f} m³ Volume"
-    )
-
+    st.metric(label="High/Critical Priority", value=f"{critical_sites} Sites", delta="Action Required", delta_color="inverse")
 with col3:
-    st.metric(
-        label="Scrap Tires Logged",
-        value=f"{total_tires:,} Units",
-        delta="EPA WARM Factor"
-    )
-
+    st.metric(label="Estimated Total Mass", value=f"{est_mass_low:.0f}–{est_mass_high:.0f} t", delta="Bounded Range")
 with col4:
-    st.metric(
-        label="Future Risk Status",
-        value=f"{len(forecast_res)} Predicted Zones",
-        delta="Next 14–30 Days (Elevated)",
-        delta_color="inverse"
-    )
-
+    st.metric(label="Pending Field Check", value=f"{unverified_sites} Sites", delta="Unverified Evidence", delta_color="off")
 with col5:
-    st.metric(
-        label="Est. Cleanup Liability",
-        value=f"${fiscal['total_taxpayer_cost']:,.0f}",
-        delta=f"+${fiscal['potential_fine_recovery']:,.0f} Fine Recov.",
-        delta_color="normal"
-    )
+    st.metric(label="Near Drainage/River", value=f"{near_drainage} Sites", delta="Environmental Risk", delta_color="inverse")
 
 st.markdown("---")
 
-map_col, panel_col = st.columns([3, 1])
+# 3. Interactive Map & Side Controls
+map_col, filter_col = st.columns([3, 1])
 
-with panel_col:
-    st.subheader("⚙️ Map Filters")
-    show_historical = st.checkbox("Show Quantified Piles", value=True)
-    show_future = st.checkbox("Show Forecasted Future Zone", value=True)
-    show_heatmap = st.checkbox("Render Spatial Density Heatmap", value=False)
+with filter_col:
+    st.subheader("⚙️ Map Layers")
+    layer_incidents = st.checkbox("Incident Evidence Points", value=True)
+    layer_zones = st.checkbox("Candidate Monitoring Zones", value=True)
+    layer_heatmap = st.checkbox("Spatial Density Surface", value=False)
     
     st.markdown("---")
-    st.markdown(f"### 🎯 Forecasted Zones ({len(forecast_res)})")
-    for i, spot in enumerate(forecast_res, 1):
-        st.warning(
-            f"**Zone {i}: {spot['corridor']}**\n\n"
-            f"• Confidence: **{spot['confidence']*100:.0f}%**\n"
-            f"• Radius: ~{spot['radius_meters']}m\n"
-            f"• Trigger: {spot['driving_cause']}"
+    st.subheader("🎯 Monitoring Candidate Zones")
+    for z in candidate_zones:
+        st.info(
+            f"**{z['name']}**\n\n"
+            f"• **Risk Score:** {z['risk_score']}/100\n"
+            f"• **Recent Sites within 250m:** {z['recent_incidents']}\n"
+            f"• **Road Accessibility:** {z['road_access']}\n"
+            f"• **Concealment:** {z['concealment']}\n"
+            f"• **Consequence:** {z['consequence']}\n"
+            f"• **Status:** {z['status']}"
         )
-        
-    st.markdown("### 🚨 Recommended Intervention")
-    st.info("Rotate solar ALPR cameras between identified corridors based on confidence priority.")
 
 with map_col:
     m = folium.Map(location=[32.628, -96.645], zoom_start=14, tiles="OpenStreetMap")
     
-    # 1. Dedicated Goat Island Preserve County Parcel (Riparian River Corridor)
+    # Delineate Core Preserve Parcel
     folium.Polygon(
         locations=[
-            [32.6420, -96.6350],
-            [32.6320, -96.6230],
-            [32.6120, -96.6380],
-            [32.6100, -96.6530],
-            [32.6200, -96.6570],
-            [32.6290, -96.6490],
-            [32.6380, -96.6450]
+            [32.6420, -96.6350], [32.6320, -96.6230], [32.6120, -96.6380],
+            [32.6100, -96.6530], [32.6200, -96.6570], [32.6290, -96.6490], [32.6380, -96.6450]
         ],
         color="#1E8449",
-        weight=2.5,
+        weight=2,
         fill=True,
         fill_color="#2ECC71",
-        fill_opacity=0.12,
-        tooltip="Dallas County Open Space: Goat Island Preserve (Core ~637 Acres)"
+        fill_opacity=0.08,
+        tooltip="Dallas County Open Space: Goat Island Preserve (~637 Acres)"
     ).add_to(m)
 
-    # 2. Inter-Jurisdictional Ingress & Buffer Zone (City of Hutchins / County Road Interface)
+    # Ingress Buffer Corridor
     folium.Rectangle(
         bounds=[[32.615, -96.668], [32.642, -96.648]],
         color="#8E44AD",
         weight=1.5,
-        dash_array="5, 5",
+        dash_array="4, 4",
         fill=True,
         fill_color="#9B59B6",
         fill_opacity=0.04,
-        tooltip="Buffer: Post Oak Rd & Fulghum Ingress Corridor (Hutchins / County Transition)"
+        tooltip="Post Oak Rd Ingress Buffer (County / Municipal Interface)"
     ).add_to(m)
 
-    if show_heatmap:
-        heat_data = [[row['latitude'], row['longitude'], row['mass_metric_tons']] for _, row in incidents_df.iterrows()]
-        plugins.HeatMap(
-            heat_data,
-            radius=15,
-            blur=12,
-            min_opacity=0.3,
-            gradient={0.4: '#F1C40F', 0.7: '#E67E22', 1.0: '#C0392B'}
-        ).add_to(m)
-
-    if show_historical:
-        for _, row in incidents_df.iterrows():
-            marker_radius = min(14, max(5, int(row['mass_metric_tons'] * 1.5)))
+    # Incident Markers with Evidence Status Color-Coding
+    priority_colors = {
+        'CRITICAL': '#C0392B',
+        'HIGH': '#E67E22',
+        'MODERATE': '#F1C40F',
+        'MONITOR': '#2980B9'
+    }
+    
+    if layer_incidents:
+        for _, r in df.iterrows():
             popup_html = f"""
-            <div style="font-family: Arial; width: 200px;">
-                <h5 style="color: #C0392B; margin: 0 0 4px 0;">{row.get('incident_id', 'Active Hotspot')}</h5>
-                <b>Material:</b> {row['debris_type']}<br>
-                <b>Est. Mass:</b> {row['mass_metric_tons']:.2f} Metric Tons<br>
-                <b>Est. Tires:</b> {row['calc_tires']} units<br>
-                <b>Surface Area:</b> {row['footprint_area_m2']:.1f} m²<br>
-                <b>Logged:</b> {row['created_date'].strftime('%Y-%m-%d')}
+            <div style="font-family: Arial; width: 230px;">
+                <h5 style="margin: 0 0 4px 0; color: #1B365D;">Site {r['incident_id']}</h5>
+                <b>Evidence Status:</b> {r['evidence_status']}<br>
+                <b>Debris Class:</b> {r['debris_type']}<br>
+                <b>Est. Quantity:</b> {r['calc_tires']} tires<br>
+                <b>Footprint:</b> ~{r['footprint_m2']:.0f} m²<br>
+                <b>Est. Mass:</b> {r['mass_min_tons']}–{r['mass_max_tons']} t<br>
+                <hr style="margin: 4px 0;">
+                <b>Susceptibility Score:</b> {r['susceptibility_score']}/100<br>
+                <b>Consequence Score:</b> {r['consequence_score']}/100<br>
+                <b>Management Priority:</b> <span style="color: {priority_colors[r['management_priority']]}; font-weight: bold;">{r['management_priority']}</span>
             </div>
             """
             folium.CircleMarker(
-                location=[row['latitude'], row['longitude']],
-                radius=marker_radius,
-                color="#C0392B",
+                location=[r['latitude'], r['longitude']],
+                radius=7,
+                color=priority_colors[r['management_priority']],
                 fill=True,
-                fill_color="#E74C3C",
-                fill_opacity=0.7,
-                popup=folium.Popup(popup_html, max_width=250),
-                tooltip=f"{row['debris_type']} ({row['mass_metric_tons']:.1f} Tons)"
+                fill_color=priority_colors[r['management_priority']],
+                fill_opacity=0.8,
+                popup=folium.Popup(popup_html, max_width=260),
+                tooltip=f"{r['incident_id']} [{r['management_priority']}] - {r['evidence_status']}"
             ).add_to(m)
 
-    if show_future:
-        for spot in forecast_res:
-            popup_html = f"""
-            <div style="font-family: Arial; width: 220px;">
-                <h5 style="color: #D35400; margin: 0 0 4px 0;">🎯 {spot['corridor']}</h5>
-                <b>Risk Horizon:</b> {spot['forecast_window']}<br>
-                <b>Confidence:</b> {spot['confidence']*100:.0f}%<br>
-                <b>Trigger:</b> {spot['driving_cause']}<br>
-                <b>Action:</b> Deploy ALPR Surveillance
-            </div>
-            """
+    # Candidate Monitoring Zones
+    if layer_zones:
+        for z in candidate_zones:
             folium.Circle(
-                location=[spot['pred_lat'], spot['pred_lon']],
-                radius=spot['radius_meters'],
+                location=[z['lat'], z['lon']],
+                radius=z['radius_m'],
                 color="#D35400",
-                weight=3,
-                dash_array="6, 6",
+                weight=2.5,
+                dash_array="5, 5",
                 fill=True,
                 fill_color="#E67E22",
-                fill_opacity=0.35,
-                popup=folium.Popup(popup_html, max_width=250),
-                tooltip=f"🎯 Predicted Zone: {spot['corridor']} ({spot['confidence']*100:.0f}%)"
-            ).add_to(m)
-            folium.Marker(
-                location=[spot['pred_lat'], spot['pred_lon']],
-                icon=folium.Icon(color="orange", icon="crosshairs", prefix="fa"),
-                popup=folium.Popup(popup_html, max_width=250)
+                fill_opacity=0.25,
+                tooltip=f"{z['name']} (Risk Score: {z['risk_score']}/100)"
             ).add_to(m)
 
-    st_folium(m, width=950, height=580)
+    # Heatmap
+    if layer_heatmap:
+        heat_data = [[r['latitude'], r['longitude'], r['mid_mass_tons']] for _, r in df.iterrows()]
+        plugins.HeatMap(heat_data, radius=16, blur=14, min_opacity=0.3).add_to(m)
 
-with st.expander("📁 View Detailed Incident & Quantification Inventory"):
-    display_df = incidents_df[[
-        'created_date', 'debris_type', 'footprint_area_m2', 
-        'vol_m3', 'calc_tires', 'mass_metric_tons', 'latitude', 'longitude'
+    st_folium(m, width=950, height=560)
+
+# 4. Detailed Tabular Inventory with Uncertainty Intervals
+with st.expander("📁 Detailed Incident Evidence & Evaluative Scoring Inventory"):
+    table_df = df[[
+        'incident_id', 'evidence_status', 'debris_type', 'footprint_m2',
+        'vol_min_m3', 'vol_max_m3', 'mass_min_tons', 'mass_max_tons',
+        'susceptibility_score', 'consequence_score', 'management_priority'
     ]].copy()
-    display_df.columns = [
-        'Date Logged', 'Debris Class', 'Footprint (m²)', 
-        'Est. Vol (m³)', 'Tires (Qty)', 'Mass (Metric Tons)', 'Latitude', 'Longitude'
+    
+    table_df['Volume Range (m³)'] = table_df['vol_min_m3'].astype(str) + " – " + table_df['vol_max_m3'].astype(str)
+    table_df['Mass Range (Tons)'] = table_df['mass_min_tons'].astype(str) + " – " + table_df['mass_max_tons'].astype(str)
+    
+    display_table = table_df[[
+        'incident_id', 'evidence_status', 'debris_type', 'footprint_m2',
+        'Volume Range (m³)', 'Mass Range (Tons)', 'susceptibility_score',
+        'consequence_score', 'management_priority'
+    ]]
+    display_table.columns = [
+        'Site ID', 'Evidence Status', 'Debris Class', 'Footprint (~m²)',
+        'Est. Volume Range', 'Est. Mass Range', 'Susceptibility (0-100)',
+        'Consequence (0-100)', 'Priority'
     ]
     
-    st.markdown("#### 📊 Statistical Waste Profile & Operational Insights")
-    
-    stat_col1, stat_col2 = st.columns(2)
-    
-    with stat_col1:
-        st.caption("**Mass Distribution by Debris Classification (Metric Tons)**")
-        mass_by_type = incidents_df.groupby('debris_type')['mass_metric_tons'].sum().reset_index()
-        mass_by_type.columns = ['Debris Class', 'Total Mass (Tons)']
-        st.bar_chart(mass_by_type, x='Debris Class', y='Total Mass (Tons)', color="#C0392B")
+    st.dataframe(display_table, use_container_width=True)
 
-    with stat_col2:
-        st.caption("**Dumping Incident Frequency by Day of Week**")
-        incidents_df['Day_Name'] = pd.Categorical(
-            incidents_df['created_date'].dt.day_name(),
-            categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-            ordered=True
-        )
-        day_counts = incidents_df['Day_Name'].value_counts().sort_index().reset_index()
-        day_counts.columns = ['Day of Week', 'Incidents Logged']
-        st.line_chart(day_counts, x='Day of Week', y='Incidents Logged', color="#2980B9")
-
-    st.markdown("---")
-    
-    csv_data = display_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⚖️ Export Environmental Marshal Case Dossier (CSV)",
-        data=csv_data,
-        file_name="DallasCounty_GoatIsland_Violations_Dossier.csv",
-        mime="text/csv",
-        help="Formatted evidence packet ready for Dallas County District Attorney citation filings"
-    )
-
-    st.dataframe(display_df.style.format({
-        'Footprint (m²)': '{:.1f}',
-        'Est. Vol (m³)': '{:.1f}',
-        'Mass (Metric Tons)': '{:.2f}',
-        'Latitude': '{:.4f}',
-        'Longitude': '{:.4f}'
-    }), use_container_width=True)
-
-
-
-with st.expander("🛠️ Municipal Remediation & Policy Action Plan (Dallas County / City of Hutchins)"):
+# 5. Potential Management Interventions
+with st.expander("🛠️ Potential Management Interventions (Decision-Support Recommendations)"):
     st.markdown("""
-    ### Phase 1: Immediate Target Hardening & Physical Access Control
-    * **Crash-Rated Perimeter Gates:** Install heavy-duty steel pipe swing gates at the paved-to-unpaved transition of **Post Oak Rd** and the **Fulghum Rd spur**, keyed with Knox-Boxes for first responders and park personnel.
-    * **Earthen Berms & Riprap Barrier:** Construct $4\text{ ft}$ continuous earthen berms and line vulnerable drainage swales with $3\text{ ft}$ limestone riprap boulders to eliminate four-wheel-drive bypass tracks onto the levee margins.
+    Recommendations are tied directly to spatial risk scores and GIS infrastructure factors:
 
-    ### Phase 2: Prosecutable Surveillance Infrastructure
-    * **Solar ALPR Corridors:** Deploy mobile solar automated license plate reader (ALPR) trailers at the Post Oak Road entrance funnel.
-    * **Automated Webhook Dispatch:** Program ALPR detections of heavy multi-axle commercial vehicles entering the preserve turnaround after sunset (park curfew) to trigger instant notifications for Dallas County Sheriff / Marshal dispatch.
-    * **Evidentiary Standard:** Align image capture timestamps with **Texas Health & Safety Code § 365.012** parameters to provide the Dallas County District Attorney with admissible evidence for Class A misdemeanor prosecution.
+    * **High-Risk Vehicle Access Point (Post Oak Rd Terminus):**
+      * *GIS Factor:* Paved-to-unpaved transition with documented turning radius.
+      * *Action:* Evaluate feasibility of crash-rated perimeter swing gates or limestone boulder barriers.
+    * **Repeated Dumping Hotspots:**
+      * *GIS Factor:* DBSCAN clusters with high recency scores.
+      * *Action:* Consider targeted, periodic mobile surveillance deployment rather than continuous static patrol.
+    * **Low-Visibility Ingress Track:**
+      * *GIS Factor:* Riparian tree canopy concealment with low ambient road lighting.
+      * *Action:* Evaluate warning signage, solar deterrent lighting, and brush thinning along primary fence lines.
+    * **Waste Connected to Active Drainage:**
+      * *GIS Factor:* Piles situated within high flow-accumulation channels feeding the Trinity River.
+      * *Action:* Prioritize abatement dispatch prior to forecasted USGS gauge stage increases.
+    * **Recurring Scrap Tire Concentrations:**
+      * *GIS Factor:* Repeated unpermitted scrap rubber deposits.
+      * *Action:* Coordinate with local code compliance to audit regional commercial tire manifests.
 
-    ### Phase 3: Cross-Jurisdictional Interlocal Agreement (ILA)
-    * **Close the Enforcement Gap:** Formalize an Interlocal Agreement between **Dallas County Commissioner District 3** and the **City of Hutchins**.
-    * **Unified Right-of-Way Jurisdiction:** Empower Dallas County Environmental Marshals to cite commercial haulers on municipal road segments feeding directly into county preserve gates.
-    * **Reinvestment Escrow:** Direct all recovered Chapter 365 fines (up to $10,000 per commercial offense) into a dedicated Goat Island Preserve ecological remediation and surveillance fund.
-
-    ### Phase 4: Upstream Commercial Hauler Regulation
-    * **Mandatory Disposal Manifest Audits:** Enforce state waste tracking manifests for independent commercial contractors, roofers, and tire repair operations along the I-45 / Fulghum industrial corridor.
-    * **Tipping Fee Subsidy / Spot Checks:** Rebalance the local economic incentive by matching spot-check enforcement with voucher programs for the McCommas Bluff Landfill to divert debris from sensitive bottomland hardwood floodplains.
+    *Note: Implementation feasibility, jurisdictional authority, environmental permitting, and legal requirements must be reviewed and verified by responsible agencies prior to deployment.*
     """)
 
-with st.expander("📚 Methodology, Data Provenance & Statutory Framework"):
+# 6. Methodology, Data Provenance & Framework
+with st.expander("📚 Methodology, Data Provenance & Research Formulation"):
     st.markdown("""
-    ### 1. Primary Data Streams & Sensor Provenance
-    * **USGS Hydrological Ingestion:** Real-time streamflow and gage height retrieved via the [USGS Water Services REST API](https://waterservices.usgs.gov/) from **Station #08062500 (Trinity River near Rosser, TX)**. Stage elevations above $18.0\text{ ft}$ trigger uphill spatial displacement routines to model impassable alluvium.
-    * **Municipal Code Violations & GIS Inventories:** Spatial dump coordinates and baseline material classes calibrated using [Dallas OpenData](https://dallasopendata.com/) (*311 Service Requests: Illegal Dumping*) filtered for Lower Trinity Basin riparian buffers and Dallas County Open Space preserve borders.
-    * **Cartographic Basemaps & Infrastructure:** Road network vector topologies and parcel transitions derived from **OpenStreetMap Contributors (OSM)** and **NCTCOG** (North Central Texas Council of Governments) regional GIS datasets.
+    ### 1. Data Provenance & Sensor Integration
+    * **Hydrological Ingestion:** USGS Water Services REST API (Station #08062500, Trinity River near Rosser, TX).
+    * **Incident Distribution:** Simulated demonstration records parameterized against historical patterns from Dallas 311 service request open data.
+    * **Cartographic Boundaries:** NCTCOG GIS regional parcel layers and OpenStreetMap road vector basemaps.
 
-    ### 2. Waste Volumetric & Mass Quantification Factors
-    Volumetric conversions use field-derived compaction ratios and the **EPA Waste Reduction Model (WARM v15)** standards:
-    * **Scrap Tires:** $0.024\text{ metric tons/unit}$ (~$22.5\text{ lbs/tire}$) per EPA scrap tire recovery factors.
-    * **Construction & Demolition (C&D) Rubble:** Bulk bulk-density factor of $0.45\text{ metric tons/m}^3$.
-    * **Bulk Furniture / MSW:** Density factor of $0.24\text{ metric tons/m}^3$ across delineated surface footprints.
+    ### 2. Waste Quantification Uncertainty
+    Bulk conversions do not claim exact metric survey precision; instead, they represent bounded engineering ranges:
+    * Passenger Scrap Tires: 0.009 to 0.012 metric tons/unit (~20–26 lbs/unit).
+    * Construction & Demolition Rubble: 0.40 to 0.55 metric tons/m³.
+    * Mixed Solid Waste & Bulky Furniture: 0.18 to 0.28 metric tons/m³.
 
-    ### 3. Fiscal Remediation & Statutory Liability Baselines
-    * **Remediation Cost Model:** Calibrated against average municipal abatement contracting schedules: **$450.00/ton** (C&D Hazmat sorting), **$385.00/ton** (Mixed Municipal Solid Waste), **$4.75/unit** (Tire environmental recycling surcharge), plus heavy machinery mobilization.
-    * **Enforcement & Fine Recovery:** Modeled pursuant to **Texas Health & Safety Code Chapter 365 (Texas Litter Abatement Act)**, categorizing unpermitted commercial dumping exceeding $200\text{ lbs}$ (or $5\text{ gallons}$) as a Class A Misdemeanor with corporate criminal penalties up to **$10,000 per violation**.
-
-    ### 4. Predictive Machine Learning Architecture
-    * **Spatial Clustering:** Density-Based Spatial Clustering of Applications with Noise (**DBSCAN**) using haversine geodesic distance ($250\text{m}$ spatial search neighborhood, $\text{MinPts}=2$).
-    * **Temporal Hawkes Process:** Self-exciting point process with exponential recency decay ($\\beta = 0.05$, corresponding to an empirical half-life of $\\sim 14\text{ days}$) dynamically weighted against hydrologic stage saturation.
+    ### 3. Spatiotemporal Research Agenda (Hawkes Evaluation)
+    To test whether self-exciting point processes provide predictive value over static GIS susceptibility models, ongoing work evaluates:
+    * *Model A:* Historical spatial density baseline (Kernel Density Estimation).
+    * *Model B:* Environmental and road accessibility susceptibility regression.
+    * *Model C:* Spatiotemporal Hawkes self-excitation process ($w_i = \exp(-\beta \cdot \Delta t_i)$).
+    * *Model D:* Integrated composite multi-criteria model.
     """)
