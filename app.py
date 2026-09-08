@@ -11,11 +11,11 @@ import pandas as pd
 from datetime import datetime
 
 from pipeline_engine import (
-    compute_fiscal_impact,
     fetch_usgs_river_stage,
     fetch_dumping_incidents,
     quantify_waste_inventory,
     forecast_future_hotspots,
+    compute_fiscal_impact,
     PRESERVE_BBOX
 )
 
@@ -35,6 +35,7 @@ def execute_live_pipeline():
     return stage, quantified_df, forecast, last_updated
 
 river_stage, incidents_df, forecast_res, update_timestamp = execute_live_pipeline()
+fiscal = compute_fiscal_impact(incidents_df)
 
 st.title("🛡️ Goat Island Preserve: Live GeoAI Dumping & Hazard Monitor")
 st.caption(f"📍 Dallas County District 3 | Lower Trinity River Basin | Auto-updated: **{update_timestamp}**")
@@ -44,7 +45,6 @@ total_tires = incidents_df['calc_tires'].sum()
 total_volume = incidents_df['vol_m3'].sum()
 
 col1, col2, col3, col4, col5 = st.columns(5)
-fiscal = compute_fiscal_impact(incidents_df)
 
 with col1:
     stage_delta = "Flood Warning" if river_stage > 20.0 else ("Caution: Saturated" if river_stage > 16.0 else "Normal Stage")
@@ -104,13 +104,13 @@ with panel_col:
             f"• Radius: ~{spot['radius_meters']}m\n"
             f"• Trigger: {spot['driving_cause']}"
         )
+        
     st.markdown("### 🚨 Recommended Intervention")
     st.info("Rotate solar ALPR cameras between identified corridors based on confidence priority.")
 
 with map_col:
     m = folium.Map(location=[32.628, -96.645], zoom_start=14, tiles="OpenStreetMap")
     
-    # Boundary box for Goat Island Preserve
     folium.Rectangle(
         bounds=[[32.610, -96.662], [32.640, -96.628]],
         color="#1B365D",
@@ -188,14 +188,6 @@ with map_col:
     st_folium(m, width=950, height=580)
 
 with st.expander("📁 View Detailed Incident & Quantification Inventory"):
-    csv_data = display_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⚖️ Export Environmental Marshal Case Dossier (CSV)",
-        data=csv_data,
-        file_name="DallasCounty_GoatIsland_Violations_Dossier.csv",
-        mime="text/csv",
-        help="Formatted evidence packet ready for Dallas County District Attorney citation filings"
-    )
     display_df = incidents_df[[
         'created_date', 'debris_type', 'footprint_area_m2', 
         'vol_m3', 'calc_tires', 'mass_metric_tons', 'latitude', 'longitude'
@@ -204,6 +196,16 @@ with st.expander("📁 View Detailed Incident & Quantification Inventory"):
         'Date Logged', 'Debris Class', 'Footprint (m²)', 
         'Est. Vol (m³)', 'Tires (Qty)', 'Mass (Metric Tons)', 'Latitude', 'Longitude'
     ]
+    
+    csv_data = display_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="⚖️ Export Environmental Marshal Case Dossier (CSV)",
+        data=csv_data,
+        file_name="DallasCounty_GoatIsland_Violations_Dossier.csv",
+        mime="text/csv",
+        help="Formatted evidence packet ready for Dallas County District Attorney citation filings"
+    )
+
     st.dataframe(display_df.style.format({
         'Footprint (m²)': '{:.1f}',
         'Est. Vol (m³)': '{:.1f}',
