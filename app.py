@@ -229,9 +229,12 @@ with st.expander("📁 View Detailed Incident & Quantification Inventory"):
 
     with stat_col2:
         st.caption("**Dumping Incident Frequency by Day of Week**")
-        incidents_df['Day_Name'] = incidents_df['created_date'].dt.day_name()
-        day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        day_counts = incidents_df['Day_Name'].value_counts().reindex(day_order, fill_value=0).reset_index()
+        incidents_df['Day_Name'] = pd.Categorical(
+            incidents_df['created_date'].dt.day_name(),
+            categories=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+            ordered=True
+        )
+        day_counts = incidents_df['Day_Name'].value_counts().sort_index().reset_index()
         day_counts.columns = ['Day of Week', 'Incidents Logged']
         st.line_chart(day_counts, x='Day of Week', y='Incidents Logged', color="#2980B9")
 
