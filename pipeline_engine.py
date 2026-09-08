@@ -171,3 +171,25 @@ def forecast_future_hotspots(df: pd.DataFrame, river_stage: float) -> list:
         })
 
     return future_spots
+
+
+# Municipal remediation benchmarks (EPA / Dallas County contract estimates)
+COST_PER_TON_MSW = 385.00
+COST_PER_TON_CD = 450.00
+COST_PER_TIRE = 4.75
+MOBILIZATION_FLAT = 2500.00
+
+def compute_fiscal_impact(df: pd.DataFrame) -> dict:
+    cd_mass = df[df['debris_type'] == "C&D Rubble"]['mass_metric_tons'].sum()
+    msw_mass = df[df['debris_type'] != "C&D Rubble"]['mass_metric_tons'].sum()
+    tires = df['calc_tires'].sum()
+    
+    clean_cost = (cd_mass * COST_PER_TON_CD) + (msw_mass * COST_PER_TON_MSW) + (tires * COST_PER_TIRE) + MOBILIZATION_FLAT
+    fine_recovery = min(clean_cost * 1.5, len(df) * 4000.00)  # Texas Health & Safety Code Ch. 365 fines up to $10,000
+    
+    return {
+        "total_taxpayer_cost": clean_cost,
+        "potential_fine_recovery": fine_recovery,
+        "cd_mass": cd_mass,
+        "msw_mass": msw_mass
+    }

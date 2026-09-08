@@ -11,6 +11,7 @@ import pandas as pd
 from datetime import datetime
 
 from pipeline_engine import (
+    compute_fiscal_impact,
     fetch_usgs_river_stage,
     fetch_dumping_incidents,
     quantify_waste_inventory,
@@ -42,7 +43,8 @@ total_metric_tons = incidents_df['mass_metric_tons'].sum()
 total_tires = incidents_df['calc_tires'].sum()
 total_volume = incidents_df['vol_m3'].sum()
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
+fiscal = compute_fiscal_impact(incidents_df)
 
 with col1:
     stage_delta = "Flood Warning" if river_stage > 20.0 else ("Caution: Saturated" if river_stage > 16.0 else "Normal Stage")
@@ -73,6 +75,14 @@ with col4:
         value=f"{len(forecast_res)} Predicted Zones",
         delta="Next 14–30 Days (Elevated)",
         delta_color="inverse"
+    )
+
+with col5:
+    st.metric(
+        label="Est. Cleanup Liability",
+        value=f"${fiscal['total_taxpayer_cost']:,.0f}",
+        delta=f"+${fiscal['potential_fine_recovery']:,.0f} Fine Recov.",
+        delta_color="normal"
     )
 
 st.markdown("---")
@@ -178,6 +188,14 @@ with map_col:
     st_folium(m, width=950, height=580)
 
 with st.expander("📁 View Detailed Incident & Quantification Inventory"):
+    csv_data = display_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="⚖️ Export Environmental Marshal Case Dossier (CSV)",
+        data=csv_data,
+        file_name="DallasCounty_GoatIsland_Violations_Dossier.csv",
+        mime="text/csv",
+        help="Formatted evidence packet ready for Dallas County District Attorney citation filings"
+    )
     display_df = incidents_df[[
         'created_date', 'debris_type', 'footprint_area_m2', 
         'vol_m3', 'calc_tires', 'mass_metric_tons', 'latitude', 'longitude'
