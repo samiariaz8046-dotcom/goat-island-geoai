@@ -217,6 +217,26 @@ with st.expander("📁 View Detailed Incident & Quantification Inventory"):
         'Est. Vol (m³)', 'Tires (Qty)', 'Mass (Metric Tons)', 'Latitude', 'Longitude'
     ]
     
+    st.markdown("#### 📊 Statistical Waste Profile & Operational Insights")
+    
+    stat_col1, stat_col2 = st.columns(2)
+    
+    with stat_col1:
+        st.caption("**Mass Distribution by Debris Classification (Metric Tons)**")
+        mass_by_type = incidents_df.groupby('debris_type')['mass_metric_tons'].sum().reset_index()
+        mass_by_type.columns = ['Debris Class', 'Total Mass (Tons)']
+        st.bar_chart(mass_by_type, x='Debris Class', y='Total Mass (Tons)', color="#C0392B")
+
+    with stat_col2:
+        st.caption("**Dumping Incident Frequency by Day of Week**")
+        incidents_df['Day_Name'] = incidents_df['created_date'].dt.day_name()
+        day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        day_counts = incidents_df['Day_Name'].value_counts().reindex(day_order, fill_value=0).reset_index()
+        day_counts.columns = ['Day of Week', 'Incidents Logged']
+        st.line_chart(day_counts, x='Day of Week', y='Incidents Logged', color="#2980B9")
+
+    st.markdown("---")
+    
     csv_data = display_df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="⚖️ Export Environmental Marshal Case Dossier (CSV)",
